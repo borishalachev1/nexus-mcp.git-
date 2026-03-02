@@ -11,7 +11,10 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
-    "inspector": "npx -y @modelcontextprotocol/inspector node dist/index.js"
+    "inspector": "npx -y @modelcontextprotocol/inspector node dist/index.js",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean",
+    "prepare": "npm run build"
   },
   "keywords": [
     "mcp",
@@ -20,8 +23,25 @@
     "payment-gateway",
     "ai-agents",
     "micropayments",
-    "nexus"
+    "nexus",
+    "web3",
+    "usdc",
+    "claude",
+    "chatgpt",
+    "model-context-protocol"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/borishalachev1/nexus-mcp.git-.git"
+  },
+  "bugs": {
+    "url": "https://github.com/borishalachev1/nexus-mcp.git-/issues"
+  },
+  "homepage": "https://github.com/borishalachev1/nexus-mcp.git-#readme",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
   "author": "Boris Halachev",
   "license": "MIT",
   "dependencies": {

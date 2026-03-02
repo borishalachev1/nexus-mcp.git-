@@ -1,5 +1,11 @@
 # 🚀 Nexus MCP
 
+[![CI](https://github.com/borishalachev1/nexus-mcp.git-/actions/workflows/ci.yml/badge.svg)](https://github.com/borishalachev1/nexus-mcp.git-/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen)](https://nodejs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
+[![X402](https://img.shields.io/badge/X402-Protocol-orange)](https://x402.org)
+
 **Payment-gate your APIs in seconds — powered by X402 and Thirdweb**
 
 Turn any API into a pay-per-use service that AI agents can discover and pay for automatically.
