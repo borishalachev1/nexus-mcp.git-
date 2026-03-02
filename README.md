@@ -174,7 +174,9 @@ Rebuild: `npm run build`
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome! Please read:
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Contribution guidelines
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - Community standards
 
 ---
 

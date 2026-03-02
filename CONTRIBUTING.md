@@ -55,4 +55,6 @@ Open an issue or reach out to borishalachev636@gmail.com
 
 ---
 
-**Code of Conduct**: Be respectful and constructive.
+## Code of Conduct
+
+Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before contributing. We are committed to providing a welcoming and inclusive environment for all contributors.
