@@ -1,0 +1,38 @@
+{
+  "name": "@nexus/mcp-server",
+  "version": "1.0.0",
+  "description": "Nexus MCP - Payment-gate your APIs in seconds with X402 and Thirdweb",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "nexus-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "inspector": "npx -y @modelcontextprotocol/inspector node dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "x402",
+    "thirdweb",
+    "payment-gateway",
+    "ai-agents",
+    "micropayments",
+    "nexus"
+  ],
+  "author": "Boris Halachev",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "thirdweb": "^5.118.1",
+    "dotenv": "^16.4.5",
+    "viem": "^2.7.15"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3"
+  }
+}
