@@ -172,9 +172,21 @@ Rebuild: `npm run build`
 
 ---
 
+## 🤝 Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+---
+
+## 🔒 Security
+
+See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
+
+---
+
 ## 📝 License
 
-MIT License
+MIT License - See [LICENSE](LICENSE) file
 
 ---
 
@@ -183,9 +195,26 @@ MIT License
 **Boris Halachev**
 - GitHub: [@borishalachev1](https://github.com/borishalachev1)
 - Email: borishalachev636@gmail.com
-
-Built with ❤️ using X402, Thirdweb, and MCP
+- Portfolio: Coming soon
 
 ---
 
-⚠️ **Testnet software** - Use at your own risk
+## 🙏 Acknowledgments
+
+- **[X402 Protocol](https://x402.org)** - Decentralized payment verification by Coinbase
+- **[Thirdweb](https://thirdweb.com)** - Web3 development platform
+- **[Anthropic](https://anthropic.com)** - Model Context Protocol (MCP) SDK
+
+---
+
+## 📊 Project Stats
+
+![GitHub stars](https://img.shields.io/github/stars/borishalachev1/nexus-mcp.git-?style=social)
+![GitHub forks](https://img.shields.io/github/forks/borishalachev1/nexus-mcp.git-?style=social)
+![GitHub issues](https://img.shields.io/github/issues/borishalachev1/nexus-mcp.git-)
+
+---
+
+**Built with ❤️ for the decentralized future**
+
+⚠️ **Testnet software** - Always audit before production use
