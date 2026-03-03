@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus Payment - Approve Payment</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <style>
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(147, 51, 234, 0.5); }
+      50% { box-shadow: 0 0 40px rgba(147, 51, 234, 0.8); }
+    }
+    .glow-animation {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 min-h-screen flex items-center justify-center p-4">
+  <div id="root">
+    <!-- Fallback loading state -->
+    <div class="max-w-lg w-full bg-white rounded-3xl shadow-2xl p-8">
+      <div class="text-center">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-600 border-t-transparent mb-4"></div>
+        <p class="text-gray-600">Loading Thirdweb SDK...</p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    try {
+      // Import Thirdweb SDK
+      const { createThirdwebClient } = await import('https://esm.sh/thirdweb@5.118.1');
+      const { ConnectButton, useActiveAccount, useActiveWallet } = await import('https://esm.sh/thirdweb@5.118.1/react');
+      const { inAppWallet, createWallet } = await import('https://esm.sh/thirdweb@5.118.1/wallets');
+      const { baseSepolia } = await import('https://esm.sh/thirdweb@5.118.1/chains');
+
+      // Use React from global
+      const React = window.React;
+      const ReactDOM = window.ReactDOM;
+      const { useState, useEffect } = React;
+      
+      console.log('✅ Thirdweb SDK loaded successfully');
+
+    // Get payment ID from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentId = urlParams.get('payment');
+
+    // Socket connection
+    const socket = io();
+
+    // Payment App Component
+    function PaymentApp() {
+      const [paymentData, setPaymentData] = useState(null);
+      const [client, setClient] = useState(null);
+      const [isProcessing, setIsProcessing] = useState(false);
+      const [showSuccess, setShowSuccess] = useState(false);
+      
+      const activeAccount = useActiveAccount();
+      const activeWallet = useActiveWallet();
+
+      // Load config and initialize client
+      useEffect(() => {
+        fetch('/api/config')
+          .then(res => res.json())
+          .then(config => {
+            const thirdwebClient = createThirdwebClient({
+              clientId: config.thirdwebClientId
+            });
+            setClient(thirdwebClient);
+          })
+          .catch(err => {
+            console.error('Failed to load config:', err);
+            // Fallback - you should replace this with your actual client ID
+            const thirdwebClient = createThirdwebClient({
+              clientId: 'YOUR_CLIENT_ID'
+            });
+            setClient(thirdwebClient);
+          });
+      }, []);
+
+      // Load payment details
+      useEffect(() => {
+        if (!paymentId) return;
+
+        fetch(`/api/pending-payment/${paymentId}`)
+          .then(res => res.json())
+          .then(data => {
+            setPaymentData(data);
+          })
+          .catch(err => {
+            console.error('Failed to load payment:', err);
+          });
+
+        // Listen for socket updates
+        socket.on('payment-request', (data) => {
+          if (data.id === paymentId) {
+            setPaymentData(data);
+          }
+        });
+      }, [paymentId]);
+
+      // Define wallet options - exactly as shown in Thirdweb docs
+      const wallets = client ? [
+        inAppWallet({
+          auth: {
+            options: [
+              "google",
+              "discord",
+              "telegram",
+              "email",
+              "x",
+              "passkey",
+              "phone",
+            ],
+          },
+        }),
+        createWallet("io.metamask"),
+        createWallet("com.coinbase.wallet"),
+        createWallet("me.rainbow"),
+        createWallet("io.rabby"),
+        createWallet("io.zerion.wallet"),
+      ] : [];
+
+      // Approve payment with real signature
+      const handleApprovePayment = async () => {
+        if (!activeAccount || !activeWallet) {
+          alert('Please connect your wallet first');
+          return;
+        }
+
+        setIsProcessing(true);
+        
+        try {
+          // Generate EIP-712 signature for X402 / Permit2
+          const deadline = Math.floor(Date.now() / 1000) + 300; // 5 minutes
+          const nonce = Date.now().toString() + Math.random().toString(36).substring(2);
+          
+          // EIP-712 domain and types for Permit2
+          const domain = {
+            name: 'Permit2',
+            chainId: 84532, // Base Sepolia
+            verifyingContract: '0x000000000022D473030F116dDEE9F6B43aC78BA3', // Permit2 address
+          };
+
+          const types = {
+            PermitWitnessTransferFrom: [
+              { name: 'permitted', type: 'TokenPermissions' },
+              { name: 'spender', type: 'address' },
+              { name: 'nonce', type: 'uint256' },
+              { name: 'deadline', type: 'uint256' },
+              { name: 'witness', type: 'PaymentWitness' }
+            ],
+            TokenPermissions: [
+              { name: 'token', type: 'address' },
+              { name: 'amount', type: 'uint256' }
+            ],
+            PaymentWitness: [
+              { name: 'recipient', type: 'address' },
+              { name: 'amount', type: 'uint256' }
+            ]
+          };
+
+          const usdcAmount = parseFloat(paymentData.amount);
+          const amountInWei = (usdcAmount * 1e6).toString(); // USDC has 6 decimals
+
+          const message = {
+            permitted: {
+              token: paymentData.token,
+              amount: amountInWei
+            },
+            spender: paymentData.recipient,
+            nonce: nonce,
+            deadline: deadline,
+            witness: {
+              recipient: paymentData.recipient,
+              amount: amountInWei
+            }
+          };
+
+          // Sign the typed data using Thirdweb wallet
+          const signature = await activeWallet.signTypedData({
+            account: activeAccount,
+            domain,
+            types,
+            primaryType: 'PermitWitnessTransferFrom',
+            message
+          });
+
+          // Submit to server with the real signature
+          const response = await fetch(`/api/approve-payment/${paymentId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress: activeAccount.address,
+              signature,
+              nonce,
+              deadline,
+              amount: amountInWei
+            })
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            setShowSuccess(true);
+            setTimeout(() => window.close(), 3000);
+          } else {
+            throw new Error(result.error || 'Payment failed');
+          }
+        } catch (error) {
+          console.error('Payment error:', error);
+          alert('Payment failed: ' + error.message);
+        } finally {
+          setIsProcessing(false);
+        }
+      };
+
+      // Loading state
+      if (!client || !paymentData) {
+        return React.createElement('div', { className: 'max-w-lg w-full bg-white rounded-3xl shadow-2xl p-8' },
+          React.createElement('div', { className: 'text-center' },
+            React.createElement('div', { className: 'inline-block animate-spin rounded-full h-12 w-12 border-4 border-purple-600 border-t-transparent mb-4' }),
+            React.createElement('p', { className: 'text-gray-600' }, 'Loading payment details...')
+          )
+        );
+      }
+
+      // Success state
+      if (showSuccess) {
+        return React.createElement('div', { className: 'max-w-lg w-full bg-white rounded-3xl shadow-2xl p-8' },
+          React.createElement('div', { className: 'text-center py-8' },
+            React.createElement('div', { className: 'inline-block w-20 h-20 bg-gradient-to-br from-green-400 to-emerald-500 rounded-full flex items-center justify-center mb-6' },
+              React.createElement('svg', { className: 'w-12 h-12 text-white', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M5 13l4 4L19 7' })
+              )
+            ),
+            React.createElement('h2', { className: 'text-3xl font-bold text-gray-900 mb-3' }, 'Payment Approved!'),
+            React.createElement('p', { className: 'text-gray-600' }, 'Transaction submitted successfully'),
+            React.createElement('p', { className: 'text-sm text-gray-500 mt-2' }, 'Closing window...')
+          )
+        );
+      }
+
+      // Main payment UI
+      return React.createElement('div', { className: 'max-w-lg w-full' },
+        React.createElement('div', { className: 'bg-white rounded-3xl shadow-2xl p-8' },
+          // Header
+          React.createElement('div', { className: 'text-center mb-8' },
+            React.createElement('div', { className: 'inline-block bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-600 rounded-full p-5 mb-4 glow-animation' },
+              React.createElement('svg', { className: 'w-14 h-14 text-white', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z' })
+              )
+            ),
+            React.createElement('h1', { className: 'text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent' }, 'Payment Required'),
+            React.createElement('p', { className: 'text-gray-500 text-sm mt-2' }, 'Secure payment via X402 Protocol + Thirdweb')
+          ),
+          
+          // Payment Details
+          React.createElement('div', { className: 'bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 mb-6 border border-gray-200' },
+            React.createElement('div', { className: 'flex justify-between items-center mb-4 pb-4 border-b border-gray-200' },
+              React.createElement('span', { className: 'text-gray-600 font-medium' }, 'Tool'),
+              React.createElement('span', { className: 'font-bold text-gray-900' }, paymentData.toolName)
+            ),
+            React.createElement('div', { className: 'flex justify-between items-center mb-4 pb-4 border-b border-gray-200' },
+              React.createElement('span', { className: 'text-gray-600 font-medium' }, 'Amount'),
+              React.createElement('span', { className: 'text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent' }, `${paymentData.amount} USDC`)
+            ),
+            React.createElement('div', { className: 'flex justify-between items-center' },
+              React.createElement('span', { className: 'text-gray-600 font-medium' }, 'Network'),
+              React.createElement('span', { className: 'font-bold text-gray-900' }, 'Base Sepolia')
+            )
+          ),
+          
+          // Thirdweb Connect Button
+          React.createElement('div', { className: 'mb-4' },
+            React.createElement(ConnectButton, {
+              client: client,
+              chain: baseSepolia,
+              wallets: wallets,
+              connectModal: { size: 'compact' },
+              theme: 'light'
+            })
+          ),
+          
+          // Approve Payment Button (only show when connected)
+          activeAccount && React.createElement('button', {
+            onClick: handleApprovePayment,
+            disabled: isProcessing,
+            className: 'w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold py-4 px-6 rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:-translate-y-1 disabled:opacity-50 disabled:cursor-not-allowed'
+          },
+            isProcessing
+              ? React.createElement('span', { className: 'flex items-center justify-center' },
+                  React.createElement('div', { className: 'inline-block animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2' }),
+                  'Processing...'
+                )
+              : React.createElement('span', { className: 'flex items-center justify-center' },
+                  React.createElement('svg', { className: 'w-6 h-6 mr-2', fill: 'none', stroke: 'currentColor', viewBox: '0 0 24 24' },
+                    React.createElement('path', { strokeLinecap: 'round', strokeLinejoin: 'round', strokeWidth: '2', d: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' })
+                  ),
+                  'Approve Payment'
+                )
+          ),
+          
+          // Security badge
+          React.createElement('div', { className: 'mt-6 text-center' },
+            React.createElement('div', { className: 'inline-flex items-center text-sm text-gray-500' },
+              React.createElement('svg', { className: 'w-4 h-4 mr-1 text-orange-500', fill: 'currentColor', viewBox: '0 0 20 20' },
+                React.createElement('path', { fillRule: 'evenodd', d: 'M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z', clipRule: 'evenodd' })
+              ),
+              'Secured by X402 Protocol + Thirdweb'
+            )
+          ),
+          
+          // First time info
+          React.createElement('div', { className: 'mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4' },
+            React.createElement('p', { className: 'text-xs font-semibold text-blue-800 mb-2' }, '💡 First time?'),
+            React.createElement('ul', { className: 'text-xs text-blue-700 space-y-1' },
+              React.createElement('li', null, '• Connect your wallet (MetaMask, Coinbase, Email, Google, etc.)'),
+              React.createElement('li', null, '• Approve the payment signature (no gas fees!)'),
+              React.createElement('li', null, '• Your tool will execute automatically')
+            )
+          )
+        )
+      );
+    }
+
+    // Render the app
+    const rootElement = document.getElementById('root');
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(React.createElement(PaymentApp));
+    
+    } catch (error) {
+      console.error('❌ Failed to load Thirdweb SDK:', error);
+      document.getElementById('root').innerHTML = `
+        <div class="max-w-lg w-full bg-white rounded-3xl shadow-2xl p-8">
+          <div class="text-center">
+            <div class="inline-block w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+              <svg class="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-900 mb-3">Failed to Load</h2>
+            <p class="text-gray-600 mb-4">Error loading Thirdweb SDK. Please refresh the page.</p>
+            <button onclick="window.location.reload()" class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700">
+              Refresh Page
+            </button>
+            <p class="text-xs text-gray-500 mt-4">Error: ${error.message}</p>
+          </div>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>

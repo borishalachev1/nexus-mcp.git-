@@ -23,6 +23,7 @@ import { config } from './config.js';
 import { paymentHandler } from './payment.js';
 import { tools } from './tools.js';
 import type { X402PaymentPayload, NexusToolResult } from './types.js';
+import { paymentUIServer } from './payment-ui-server.js';
 
 /**
  * Nexus MCP Server Class
@@ -59,7 +60,7 @@ class NexusMCPServer {
     });
 
     // Handle tool calls with payment verification
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> => {
       const toolName = request.params.name;
       const args = request.params.arguments || {};
 
@@ -74,61 +75,77 @@ class NexusMCPServer {
 
       if (requiresPayment) {
         // Payment is required - verify it
-        const payment = args.payment as X402PaymentPayload | undefined;
+        let payment = args.payment as X402PaymentPayload | undefined;
 
         if (!payment) {
-          // No payment provided - return payment requirements
-          const paymentMetadata = paymentHandler.createPaymentMetadata(tool.price);
+          // No payment provided - prompt user via UI
+          console.error(`\n💳 Payment required for ${toolName}`);
+          console.error(`   Requesting ${tool.price} USDC from user...\n`);
           
-          throw new McpError(
-            ErrorCode.InvalidRequest,
-            `Payment required: ${tool.price} USDC. Please include payment signature in your request.`,
-            paymentMetadata
-          );
+          try {
+            // Request payment via UI
+            payment = await paymentUIServer.requestPayment(
+              toolName,
+              tool.price,
+              tool.description
+            );
+            
+            console.error('✅ Payment approved by user\n');
+          } catch (error) {
+            const paymentMetadata = paymentHandler.createPaymentMetadata(tool.price);
+            
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              `Payment required: ${tool.price} USDC. Payment approval failed or cancelled.`,
+              paymentMetadata
+            );
+          }
         }
 
-        // Verify the payment signature
-        const isValid = await paymentHandler.verifyPayment(payment);
-        if (!isValid) {
-          throw new McpError(
-            ErrorCode.InvalidRequest,
-            'Invalid payment signature. Please check your payment details and try again.'
-          );
-        }
+        // Verify the payment signature (payment is guaranteed to be defined here)
+        if (payment) {
+          const isValid = await paymentHandler.verifyPayment(payment);
+          if (!isValid) {
+            throw new McpError(
+              ErrorCode.InvalidRequest,
+              'Invalid payment signature. Please check your payment details and try again.'
+            );
+          }
 
-        // Settle the payment on-chain
-        const txHash = await paymentHandler.settlePayment(payment);
-        if (!txHash) {
-          throw new McpError(
-            ErrorCode.InternalError,
-            'Payment settlement failed. Please try again or contact support.'
-          );
-        }
+          // Settle the payment on-chain
+          const txHash = await paymentHandler.settlePayment(payment);
+          if (!txHash) {
+            throw new McpError(
+              ErrorCode.InternalError,
+              'Payment settlement failed. Please try again or contact support.'
+            );
+          }
 
-        // Execute the tool with payment verified
-        try {
-          const result = await tool.handler(args);
-          
-          const toolResult: NexusToolResult = {
-            success: true,
-            data: result,
-            paymentVerified: true,
-            transactionHash: txHash,
-          };
+          // Execute the tool with payment verified
+          try {
+            const result = await tool.handler(args);
+            
+            const toolResult: NexusToolResult = {
+              success: true,
+              data: result,
+              paymentVerified: true,
+              transactionHash: txHash,
+            };
 
-          return {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify(toolResult, null, 2),
-              },
-            ],
-          };
-        } catch (error) {
-          throw new McpError(
-            ErrorCode.InternalError,
-            `Tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-          );
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(toolResult, null, 2),
+                },
+              ],
+            };
+          } catch (error) {
+            throw new McpError(
+              ErrorCode.InternalError,
+              `Tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+          }
         }
       } else {
         // Free tool - no payment required
@@ -160,6 +177,9 @@ class NexusMCPServer {
   }
 
   async start() {
+    // Start payment UI server first
+    await paymentUIServer.start();
+    
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
 
@@ -168,6 +188,7 @@ class NexusMCPServer {
     console.error(`💳 Payment recipient: ${config.payment.recipient}`);
     console.error(`⛓️  Chain: ${config.blockchain.chainId}`);
     console.error(`🔧 Available tools: ${tools.length}`);
+    console.error(`🌐 Payment UI: ${paymentUIServer.getUIUrl()}`);
     console.error('');
     console.error('Waiting for MCP client connection...');
   }

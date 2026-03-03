@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nexus Payment - Approve Payment</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(147, 51, 234, 0.5); }
+      50% { box-shadow: 0 0 40px rgba(147, 51, 234, 0.8); }
+    }
+    .glow-animation {
+      animation: pulse-glow 2s ease-in-out infinite;
+    }
+    
+    /* Thirdweb-inspired styles */
+    .thirdweb-button {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      border: none;
+      border-radius: 12px;
+      padding: 16px 24px;
+      font-weight: 600;
+      font-size: 16px;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .thirdweb-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.5);
+    }
+    
+    .thirdweb-button:active {
+      transform: translateY(0);
+    }
+    
+    .wallet-option {
+      border: 2px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      background: white;
+    }
+    
+    .wallet-option:hover {
+      border-color: #6366f1;
+      background: #f5f3ff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+    }
+    
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .badge-success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+    
+    .badge-info {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 min-h-screen flex items-center justify-center p-4">
+  <div class="max-w-lg w-full">
+    <!-- Payment Card -->
+    <div id="paymentCard" class="bg-white rounded-3xl shadow-2xl p-8">
+      <!-- Header -->
+      <div class="text-center mb-8">
+        <div class="inline-block bg-gradient-to-br from-purple-600 via-blue-600 to-indigo-600 rounded-full p-5 mb-4 glow-animation">
+          <svg class="w-14 h-14 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+          </svg>
+        </div>
+        <h1 class="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">Payment Required</h1>
+        <p class="text-gray-500 text-sm mt-2">Secure payment via X402 Protocol + Thirdweb</p>
+      </div>
+
+      <!-- Payment Details -->
+      <div id="paymentDetails" class="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-6 mb-6 border border-gray-200">
+        <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
+          <span class="text-gray-600 font-medium">Tool</span>
+          <span id="toolName" class="font-bold text-gray-900">Loading...</span>
+        </div>
+        <div class="flex justify-between items-center mb-4 pb-4 border-b border-gray-200">
+          <span class="text-gray-600 font-medium">Amount</span>
+          <span id="amount" class="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">0.00 USDC</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="text-gray-600 font-medium">Network</span>
+          <span id="network" class="font-bold text-gray-900">Base Sepolia</span>
+        </div>
+      </div>
+
+      <!-- Connect Wallet Button -->
+      <div id="walletSection">
+        <button id="connectBtn" class="thirdweb-button w-full text-white">
+          <span class="flex items-center justify-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+            </svg>
+            Connect Wallet
+          </span>
+        </button>
+      </div>
+
+      <!-- Info -->
+      <div class="mt-6 text-center">
+        <div class="inline-flex items-center text-sm text-gray-500">
+          <svg class="w-4 h-4 mr-1 text-orange-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path>
+          </svg>
+          Secured by X402 Protocol + Thirdweb
+        </div>
+      </div>
+
+      <!-- First time info -->
+      <div class="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <p class="text-xs font-semibold text-blue-800 mb-2">💡 First time?</p>
+        <ul class="text-xs text-blue-700 space-y-1">
+          <li>• Connect your wallet (MetaMask, Coinbase, Email, Google, etc.)</li>
+          <li>• Approve the payment signature (no gas fees!)</li>
+          <li>• Your tool will execute automatically</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Get payment ID
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentId = urlParams.get('payment');
+    const socket = io();
+
+    let paymentData = null;
+    let thirdwebClient = null;
+    let activeWallet = null;
+    let activeAccount = null;
+
+    // Load Thirdweb SDK
+    async function initThirdweb() {
+      try {
+        const { createThirdwebClient } = await import('https://esm.sh/thirdweb@5.118.1');
+        const { createWallet, inAppWallet } = await import('https://esm.sh/thirdweb@5.118.1/wallets');
+        
+        // Get config
+        const configRes = await fetch('/api/config');
+        const config = await configRes.json();
+        
+        thirdwebClient = createThirdwebClient({
+          clientId: config.thirdwebClientId
+        });
+        
+        console.log('✅ Thirdweb initialized');
+        return { createWallet, inAppWallet };
+      } catch (error) {
+        console.error('Failed to init Thirdweb:', error);
+        throw error;
+      }
+    }
+
+    // Load payment details
+    async function loadPaymentDetails() {
+      if (!paymentId) {
+        document.getElementById('toolName').textContent = 'Invalid Payment';
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/pending-payment/${paymentId}`);
+        paymentData = await response.json();
+        
+        document.getElementById('toolName').textContent = paymentData.toolName || 'Unknown Tool';
+        document.getElementById('amount').textContent = `${paymentData.amount} USDC`;
+      } catch (error) {
+        console.error('Failed to load payment:', error);
+        document.getElementById('toolName').textContent = 'Error Loading';
+      }
+    }
+
+    // Show wallet modal
+    function showWalletModal(walletUtils) {
+      const modal = document.createElement('div');
+      modal.id = 'walletModal';
+      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+      modal.innerHTML = `
+        <div class="bg-white rounded-3xl p-8 max-w-md w-full mx-4">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-gray-900">Connect Wallet</h2>
+            <button onclick="document.getElementById('walletModal').remove()" class="text-gray-400 hover:text-gray-600">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+          <div class="space-y-3" id="walletOptions"></div>
+        </div>
+      `;
+      
+      document.body.appendChild(modal);
+      
+      // Add wallet options
+      const options = [
+        { name: 'MetaMask', id: 'io.metamask', emoji: '🦊', desc: 'Most popular Web3 wallet' },
+        { name: 'Coinbase Wallet', id: 'com.coinbase.wallet', emoji: '💙', desc: 'Secure wallet by Coinbase' },
+        { name: 'Rainbow', id: 'me.rainbow', emoji: '🌈', desc: 'Beautiful Ethereum wallet' },
+        { name: 'Email', id: 'inApp', emoji: '📧', desc: 'No wallet needed - use email' },
+      ];
+      
+      const container = document.getElementById('walletOptions');
+      options.forEach(opt => {
+        const btn = document.createElement('button');
+        btn.className = 'wallet-option w-full flex items-center';
+        btn.innerHTML = `
+          <span class="text-3xl mr-4">${opt.emoji}</span>
+          <div class="text-left flex-1">
+            <div class="font-bold text-gray-900 text-base">${opt.name}</div>
+            <div class="text-sm text-gray-500 mt-1">${opt.desc}</div>
+          </div>
+          <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
+        `;
+        btn.onclick = () => connectWallet(opt.id, walletUtils);
+        container.appendChild(btn);
+      });
+    }
+
+    // Connect to wallet
+    async function connectWallet(walletId, walletUtils) {
+      try {
+        document.getElementById('walletModal')?.remove();
+        showLoading('Connecting wallet...');
+        
+        const { createWallet, inAppWallet } = walletUtils;
+        let wallet;
+        
+        if (walletId === 'inApp') {
+          wallet = inAppWallet();
+        } else {
+          wallet = createWallet(walletId);
+        }
+        
+        activeAccount = await wallet.connect({
+          client: thirdwebClient,
+          chain: { id: 84532 } // Base Sepolia
+        });
+        
+        activeWallet = wallet;
+        
+        hideLoading();
+        showConnectedState(activeAccount.address);
+        
+      } catch (error) {
+        hideLoading();
+        alert('Failed to connect: ' + error.message);
+        console.error(error);
+      }
+    }
+
+    function showLoading(message) {
+      document.getElementById('walletSection').innerHTML = `
+        <div class="text-center py-4">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-purple-600 border-t-transparent mb-2"></div>
+          <p class="text-gray-600">${message}</p>
+        </div>
+      `;
+    }
+
+    function hideLoading() {
+      // Will be replaced by connected state
+    }
+
+    function showConnectedState(address) {
+      const short = `${address.slice(0, 6)}...${address.slice(-4)}`;
+      document.getElementById('walletSection').innerHTML = `
+        <div class="bg-white border-2 border-gray-200 rounded-xl p-4 mb-4">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center">
+              <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mr-3">
+                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+              </div>
+              <div>
+                <div class="badge badge-success mb-1">Connected</div>
+                <div class="font-mono font-semibold text-sm text-gray-700">${short}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button onclick="approvePayment()" class="thirdweb-button w-full text-white" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+          <span class="flex items-center justify-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Approve Payment
+          </span>
+        </button>
+      `;
+    }
+
+    window.approvePayment = async function() {
+      if (!activeWallet || !activeAccount) {
+        alert('No wallet connected');
+        return;
+      }
+      
+      try {
+        showLoading('Generating signature...');
+        
+        // Generate EIP-712 signature for Permit2
+        const deadline = Math.floor(Date.now() / 1000) + 300; // 5 minutes
+        const nonce = Date.now().toString() + Math.random().toString(36).substring(2, 15);
+        const amountInWei = (parseFloat(paymentData.amount) * 1e6).toString(); // USDC has 6 decimals
+        
+        // EIP-712 Domain
+        const domain = {
+          name: 'Permit2',
+          chainId: 84532, // Base Sepolia
+          verifyingContract: '0x000000000022D473030F116dDEE9F6B43aC78BA3'
+        };
+        
+        // EIP-712 Types for Permit2 PermitWitnessTransferFrom
+        const types = {
+          PermitWitnessTransferFrom: [
+            { name: 'permitted', type: 'TokenPermissions' },
+            { name: 'spender', type: 'address' },
+            { name: 'nonce', type: 'uint256' },
+            { name: 'deadline', type: 'uint256' },
+            { name: 'witness', type: 'PaymentWitness' }
+          ],
+          TokenPermissions: [
+            { name: 'token', type: 'address' },
+            { name: 'amount', type: 'uint256' }
+          ],
+          PaymentWitness: [
+            { name: 'recipient', type: 'address' },
+            { name: 'amount', type: 'uint256' }
+          ]
+        };
+        
+        // Message to sign
+        const message = {
+          permitted: {
+            token: paymentData.token,
+            amount: amountInWei
+          },
+          spender: paymentData.recipient,
+          nonce: nonce,
+          deadline: deadline,
+          witness: {
+            recipient: paymentData.recipient,
+            amount: amountInWei
+          }
+        };
+        
+        console.log('Signing EIP-712 message:', { domain, types, message });
+        
+        // Sign typed data using the connected wallet
+        let signature;
+        try {
+          // Build the full EIP-712 payload
+          const typedData = {
+            types: {
+              EIP712Domain: [
+                { name: 'name', type: 'string' },
+                { name: 'chainId', type: 'uint256' },
+                { name: 'verifyingContract', type: 'address' }
+              ],
+              PermitWitnessTransferFrom: types.PermitWitnessTransferFrom,
+              TokenPermissions: types.TokenPermissions,
+              PaymentWitness: types.PaymentWitness
+            },
+            domain: domain,
+            primaryType: 'PermitWitnessTransferFrom',
+            message: message
+          };
+
+          console.log('Full typed data:', typedData);
+
+          // Use window.ethereum (MetaMask or other injected wallet)
+          if (window.ethereum) {
+            // First, make sure we're connected to the right account
+            const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+            
+            if (accounts[0].toLowerCase() !== activeAccount.address.toLowerCase()) {
+              throw new Error('Please switch to the connected wallet account');
+            }
+
+            // Sign using eth_signTypedData_v4 (most compatible)
+            signature = await window.ethereum.request({
+              method: 'eth_signTypedData_v4',
+              params: [activeAccount.address, JSON.stringify(typedData)]
+            });
+            
+            console.log('Signature received:', signature);
+          } else {
+            throw new Error('No Web3 wallet detected. Please install MetaMask or use a Web3 browser.');
+          }
+        } catch (sigError) {
+          console.error('Signature error:', sigError);
+          
+          // User rejected
+          if (sigError.code === 4001 || sigError.message.includes('User rejected')) {
+            throw new Error('Signature rejected. Please approve the signature to continue.');
+          }
+          
+          throw new Error('Failed to sign payment: ' + (sigError.message || 'Unknown error'));
+        }
+        
+        console.log('Signature generated:', signature);
+        showLoading('Submitting payment...');
+        
+        // Submit to server with real signature
+        const response = await fetch(`/api/approve-payment/${paymentId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress: activeAccount.address,
+            signature: signature,
+            nonce: nonce,
+            deadline: deadline,
+            amount: amountInWei
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          document.getElementById('walletSection').innerHTML = `
+            <div class="text-center py-8">
+              <div class="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+              </div>
+              <h3 class="text-2xl font-bold mb-2">Payment Approved!</h3>
+              <p class="text-gray-600">Closing window...</p>
+            </div>
+          `;
+          setTimeout(() => window.close(), 2000);
+        } else {
+          throw new Error(result.error);
+        }
+      } catch (error) {
+        console.error('Payment approval error:', error);
+        hideLoading();
+        showConnectedState(activeAccount.address);
+        
+        // Show user-friendly error modal
+        const errorModal = document.createElement('div');
+        errorModal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+        errorModal.innerHTML = `
+          <div class="bg-white rounded-2xl p-6 max-w-md mx-4">
+            <div class="text-center">
+              <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              </div>
+              <h3 class="text-xl font-bold text-gray-900 mb-2">Payment Failed</h3>
+              <p class="text-gray-600 text-sm mb-4">${error.message}</p>
+              <button onclick="this.closest('.fixed').remove()" class="thirdweb-button text-white px-6 py-2">
+                Try Again
+              </button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(errorModal);
+      }
+    };
+
+    // Initialize
+    (async () => {
+      await loadPaymentDetails();
+      const walletUtils = await initThirdweb();
+      
+      document.getElementById('connectBtn').onclick = () => showWalletModal(walletUtils);
+    })();
+  </script>
+</body>
+</html>

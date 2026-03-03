@@ -1,0 +1,30 @@
+{
+  "name": "@nexus/x402-client",
+  "version": "1.0.0",
+  "description": "X402 client library for Nexus MCP payment proofs",
+  "type": "module",
+  "main": "dist/x402-client.js",
+  "types": "dist/x402-client.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "x402",
+    "payment",
+    "web3",
+    "usdc",
+    "permit2",
+    "nexus",
+    "mcp"
+  ],
+  "author": "Boris Halachev",
+  "license": "MIT",
+  "dependencies": {
+    "viem": "^2.7.15"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.11.19"
+  }
+}
