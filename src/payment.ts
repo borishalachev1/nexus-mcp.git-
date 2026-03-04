@@ -1,10 +1,12 @@
 /**
  * Nexus Payment Handler
- * Handles X402 payment verification and settlement via Thirdweb
+ * Handles X402 payment verification and settlement via Thirdweb Pay & Universal Bridge
  */
 
 import { createThirdwebClient } from 'thirdweb';
 import { baseSepolia } from 'thirdweb/chains';
+import { prepareTransaction, sendTransaction } from 'thirdweb';
+import { getBuyWithCryptoQuote, getBuyWithFiatQuote } from 'thirdweb/pay';
 import { config } from './config.js';
 import type { PaymentRequirement, X402PaymentPayload, PaymentProof } from './types.js';
 
@@ -16,6 +18,82 @@ export class PaymentHandler {
       clientId: config.thirdweb.clientId,
       secretKey: config.thirdweb.secretKey,
     });
+  }
+
+  /**
+   * Get thirdweb client for external use
+   */
+  getClient() {
+    return this.thirdwebClient;
+  }
+
+  /**
+   * Process payment using thirdweb Pay (supports crypto/fiat via Universal Bridge)
+   */
+  async processPaymentWithPay(
+    fromAddress: string,
+    amountInUSDC: string,
+    paymentMethod: 'crypto' | 'fiat' = 'crypto'
+  ): Promise<{ txHash?: string; quote?: any; error?: string }> {
+    try {
+      const amountWei = this.usdcToWei(amountInUSDC);
+
+      if (paymentMethod === 'crypto') {
+        // Get quote for crypto payment using Universal Bridge
+        const quote = await getBuyWithCryptoQuote({
+          client: this.thirdwebClient,
+          fromAddress,
+          toAddress: config.payment.recipient,
+          fromChainId: config.blockchain.chainId,
+          toChainId: config.blockchain.chainId,
+          fromTokenAddress: config.payment.tokenAddress,
+          toTokenAddress: config.payment.tokenAddress,
+          toAmount: amountWei,
+        });
+
+        console.error('💰 Crypto Payment Quote:', {
+          fromToken: quote.swapDetails.fromToken.symbol,
+          toToken: quote.swapDetails.toToken.symbol,
+          fromAmount: quote.swapDetails.fromAmount,
+          toAmount: quote.swapDetails.toAmount,
+        });
+
+        return { quote };
+      } else {
+        // Get quote for fiat payment
+        const quote = await getBuyWithFiatQuote({
+          client: this.thirdwebClient,
+          fromAddress,
+          fromCurrencySymbol: 'USD',
+          toChainId: config.blockchain.chainId,
+          toAddress: fromAddress,
+          toTokenAddress: config.payment.tokenAddress,
+          toAmount: amountWei,
+        });
+
+        console.error('💳 Fiat Payment Quote:', {
+          fromCurrency: quote.fromCurrency.currencySymbol,
+          toToken: quote.toToken.symbol,
+          toAmount: quote.estimatedToAmountMinWei,
+        });
+
+        return { quote };
+      }
+    } catch (error) {
+      console.error('Payment processing error:', error);
+      return { error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
+
+  /**
+   * Convert USDC amount to wei (6 decimals)
+   */
+  private usdcToWei(amount: string): string {
+    const decimals = 6;
+    const parts = amount.split('.');
+    const whole = parts[0];
+    const fraction = (parts[1] || '').padEnd(decimals, '0').slice(0, decimals);
+    return whole + fraction;
   }
 
   /**
@@ -35,6 +113,18 @@ export class PaymentHandler {
    */
   async verifyPayment(payment: X402PaymentPayload): Promise<boolean> {
     try {
+      // 🧪 MOCK MODE: Skip actual settlement for development/testing
+      if (process.env.MOCK_SETTLEMENT === 'true') {
+        console.error('\n🧪 MOCK MODE ENABLED: Simulating payment verification and settlement');
+        console.error('   Signature: ' + payment.signature.slice(0, 20) + '...' + payment.signature.slice(-10));
+        console.error('   Amount: ' + payment.witness.amount.toString() + ' (smallest unit)');
+        console.error('   Recipient: ' + payment.witness.recipient);
+        console.error('   ✅ Mock payment verification successful!');
+        console.error('   ✅ Mock on-chain settlement successful!');
+        console.error('   ℹ️  In production, this would verify signature and settle via X402 facilitator\n');
+        return true; // Pretend verification and settlement succeeded
+      }
+      
       // Verify payment parameters match expected values
       if (payment.permitted.token.toLowerCase() !== config.payment.tokenAddress.toLowerCase()) {
         console.error('Invalid token address');
@@ -54,7 +144,15 @@ export class PaymentHandler {
 
       // Verify signature is not a placeholder
       if (!payment.signature || payment.signature === '0x' + '00'.repeat(65)) {
-        console.error('Invalid signature: placeholder or empty');
+        console.error('❌ Invalid signature: placeholder or empty');
+        console.error('   Payment must include a valid EIP-712 signature');
+        return false;
+      }
+      
+      // Additional validation: check signature is not all zeros
+      const sigBytes = payment.signature.slice(2);
+      if (sigBytes.split('').every(char => char === '0')) {
+        console.error('❌ Invalid signature: all zeros');
         return false;
       }
 

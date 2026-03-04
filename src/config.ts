@@ -5,8 +5,15 @@
 
 import { config as loadEnv } from 'dotenv';
 import type { NexusConfig } from './types.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-loadEnv();
+// Get directory path in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load .env from project root (one level up from dist/)
+loadEnv({ path: path.join(__dirname, '../.env') });
 
 export function loadConfig(): NexusConfig {
   const requiredVars = [

@@ -1,269 +1,221 @@
-# Nexus MCP Examples
+# 💡 Examples
 
-This folder contains working examples showing how to use Nexus MCP payment-gated tools.
+This directory contains working examples of how to use thirdweb Pay and Universal Bridge.
 
-## Available Examples
+## Quick Start
 
-### 1. Simple Payment Generation
-
-**Files:**
-- `simple-payment-generation.ts` (TypeScript)
-- `simple-payment-generation.py` (Python)
-
-**What it does:**
-- Generates an X402 payment proof
-- Shows the minimal code needed
-
-**Run:**
 ```bash
-# TypeScript
-export WALLET_PRIVATE_KEY="0x..."
-cd examples
-npm install
-npx tsx simple-payment-generation.ts
+# Make sure you've configured .env first!
+# See: ../SETUP_INSTRUCTIONS.md
 
-# Python
-export WALLET_PRIVATE_KEY="0x..."
-cd examples
-python simple-payment-generation.py
+# Build the project
+npm run build
+
+# Run the simple example
+npx tsx examples/simple-payment-flow.ts
+
+# Run the comprehensive examples
+npx tsx examples/standalone-wallet-payment.ts
 ```
 
-### 2. Full Claude Integration
+## Examples Overview
 
-**Files:**
-- `typescript-example.ts` (TypeScript)
-- `python-example.py` (Python)
+### 1. `simple-payment-flow.ts` ⭐ START HERE
+The absolute simplest way to process a payment. Perfect for beginners!
 
-**What it does:**
-- Generates X402 payment proof
-- Calls Claude API with MCP tools
-- Demonstrates full end-to-end flow
+**What it shows:**
+- Connect a wallet (MetaMask, Coinbase, Email, etc.)
+- Process a crypto payment
+- Get a payment quote
+- Disconnect wallet
 
-**Run:**
+**Run it:**
 ```bash
-# TypeScript
-export WALLET_PRIVATE_KEY="0x..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-cd examples
-npm install
-npx tsx typescript-example.ts
-
-# Python
-export WALLET_PRIVATE_KEY="0x..."
-export ANTHROPIC_API_KEY="sk-ant-..."
-cd examples
-python python-example.py
+npx tsx examples/simple-payment-flow.ts
 ```
 
-## Prerequisites
+### 2. `standalone-wallet-payment.ts` 🚀 COMPREHENSIVE
+Six detailed examples showing different payment scenarios.
 
-### 1. Get a Wallet
+**Examples included:**
+1. **MetaMask + Crypto Payment** - Standard crypto payment flow
+2. **Coinbase Wallet + Fiat Payment** - Credit card/bank payments
+3. **Email Wallet** - No browser extension needed!
+4. **Direct Payment Handler** - Using PaymentHandler class directly
+5. **Cross-Chain Payment** - Universal Bridge routing
+6. **Complete Flow** - Full payment flow with error handling
 
-You need an Ethereum wallet with USDC on Base Sepolia testnet.
+**Run it:**
+```bash
+npx tsx examples/standalone-wallet-payment.ts
+```
 
-**Option A: Create new wallet**
+### 3. `thirdweb-pay-example.ts` 📚 ORIGINAL
+The original example showing basic thirdweb Pay usage.
+
+**Run it:**
+```bash
+npx tsx examples/thirdweb-pay-example.ts
+```
+
+### 4. `typescript-example.ts` 🔧 MCP CLIENT
+Example of using the MCP server from a client application.
+
+**Run it:**
+```bash
+npx tsx examples/typescript-example.ts
+```
+
+## Payment Methods
+
+### Crypto Payments (Universal Bridge)
+
 ```typescript
-import { generatePrivateKey } from 'viem/accounts';
-const privateKey = generatePrivateKey();
-console.log('Private key:', privateKey);
+const result = await walletConnector.processPayment(
+  '1.00',    // Amount in USDC
+  'my_tool', // Tool name
+  'crypto'   // Payment method
+);
+
+// Universal Bridge features:
+// ✓ Pay with ANY token
+// ✓ Cross-chain routing
+// ✓ Best price discovery
+// ✓ Automatic bridging
 ```
 
-**Option B: Use existing wallet**
-- Export private key from MetaMask, etc.
-- ⚠️ Never share or commit private keys!
+### Fiat Payments
 
-### 2. Get Testnet USDC
+```typescript
+const result = await walletConnector.processPayment(
+  '1.00',    // Amount in USDC
+  'my_tool', // Tool name
+  'fiat'     // Payment method
+);
 
-1. Get Sepolia ETH: https://sepoliafaucet.com/
-2. Bridge to Base Sepolia: https://bridge.base.org/
-3. Swap for USDC on testnet DEX
-
-### 3. Get API Keys
-
-**Thirdweb** (for Nexus server):
-- Sign up: https://thirdweb.com/
-- Create project
-- Get Client ID from dashboard
-
-**Anthropic** (for Claude examples):
-- Sign up: https://console.anthropic.com/
-- Create API key
-- Free tier includes credits
-
-## Configuration
-
-All examples use these environment variables:
-
-```bash
-# Required for payment generation
-WALLET_PRIVATE_KEY="0x..."
-
-# Required for Claude examples
-ANTHROPIC_API_KEY="sk-ant-..."
-
-# Nexus configuration (examples use these defaults)
-NEXUS_CHAIN_ID=84532  # Base Sepolia
-NEXUS_TOKEN_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e
-NEXUS_RECIPIENT=0xYourNexusWallet
+// Fiat payment options:
+// ✓ Credit/debit cards
+// ✓ Bank transfers
+// ✓ Apple Pay
+// ✓ Google Pay
 ```
 
-## Example Output
+## Wallet Options
 
-### Simple Payment Generation
+### Browser Extension Wallets
 
-```json
-{
-  "permitted": {
-    "token": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    "amount": "100000"
-  },
-  "spender": "0x1234...",
-  "nonce": "1704067200123",
-  "deadline": 1704067500,
-  "witness": {
-    "recipient": "0x1234...",
-    "amount": "100000"
-  },
-  "signature": "0xabcdef..."
+```typescript
+// MetaMask
+await walletConnector.initializeWallet('io.metamask');
+
+// Coinbase Wallet
+await walletConnector.initializeWallet('com.coinbase.wallet');
+
+// WalletConnect (connects to 300+ wallets)
+await walletConnector.initializeWallet('walletConnect');
+```
+
+### In-App Wallets (No Extension Needed!)
+
+```typescript
+// Email-based wallet
+await walletConnector.initializeWallet('email', 'user@example.com');
+
+// Google social login
+await walletConnector.initializeWallet('google');
+```
+
+## Common Patterns
+
+### Check Connection Status
+
+```typescript
+if (walletConnector.isConnected()) {
+  console.log('Wallet is connected!');
+  console.log('Address:', walletConnector.getAddress());
+} else {
+  console.log('No wallet connected');
 }
 ```
 
-### Full Integration
+### Error Handling
 
-```
-Generating payment proof for 0.10 USDC...
-Payment proof generated ✓
-
-Calling weather tool via Claude...
-
-Claude wants to use tool: nexus:get_weather
-
-Tool input with payment:
-{
-  "city": "London",
-  "payment": { ... }
+```typescript
+try {
+  await walletConnector.initializeWallet('io.metamask');
+  const result = await walletConnector.processPayment('1.00', 'tool', 'crypto');
+  
+  if (result.error) {
+    console.error('Payment failed:', result.error);
+  } else if (result.quote) {
+    console.log('Payment quote:', result.quote);
+  }
+} catch (error) {
+  console.error('Error:', error);
+} finally {
+  // Always disconnect when done
+  await walletConnector.disconnect();
 }
-
-✓ Payment proof attached to tool call
-The Nexus MCP server will verify and settle the payment.
-
-✅ Done! The tool will execute after payment verification.
 ```
 
-## Modifying Examples
-
-### Change Payment Amount
+### Reusing Connections
 
 ```typescript
-// From
-const proof = await client.generatePaymentProof('0.10');
+// Connect once
+await walletConnector.initializeWallet('io.metamask');
 
-// To
-const proof = await client.generatePaymentProof('0.25'); // For analyze_data tool
-```
+// Make multiple payments
+await walletConnector.processPayment('0.10', 'tool1', 'crypto');
+await walletConnector.processPayment('0.25', 'tool2', 'crypto');
+await walletConnector.processPayment('1.00', 'tool3', 'crypto');
 
-### Change Tool
-
-```typescript
-// Call different tool
-const response = await anthropic.messages.create({
-  // ...
-  messages: [
-    {
-      role: 'user',
-      content: 'Generate an image of a sunset', // Different query
-    }
-  ],
-  tools: [
-    {
-      name: 'nexus:generate_image', // Different tool
-      description: 'Generate AI images. (0.50 USDC/image)',
-      input_schema: {
-        // ...
-        properties: {
-          prompt: { type: 'string' },
-          style: { type: 'string', enum: ['realistic', 'anime', 'oil-painting', 'digital-art'] },
-          payment: { type: 'object' }
-        }
-      }
-    }
-  ]
-});
-
-// Generate payment for 0.50 USDC
-const proof = await client.generatePaymentProof('0.50');
-```
-
-### Use Different Network
-
-```typescript
-// Base Mainnet
-const config = {
-  chainId: 8453,
-  tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-  recipientAddress: '0x...',
-};
-
-// Arbitrum One
-const config = {
-  chainId: 42161,
-  tokenAddress: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
-  recipientAddress: '0x...',
-};
-```
-
-## Troubleshooting
-
-### "Insufficient funds" error
-
-You need USDC in your wallet. See "Get Testnet USDC" above.
-
-### "Invalid signature" error
-
-- Check `recipientAddress` matches Nexus server config
-- Verify `chainId` and `tokenAddress` are correct
-
-### "Module not found" error
-
-```bash
-# TypeScript
-npm install
-
-# Python
-pip install -r ../client/python/requirements.txt
-```
-
-### "Payment deadline expired" error
-
-Payment proofs expire after 5 minutes. Regenerate and try again.
-
-## Building Your Own
-
-Use these examples as templates:
-
-1. Copy an example file
-2. Modify the tool name and input
-3. Adjust payment amount
-4. Run and test
-
-Example custom tool:
-
-```typescript
-const proof = await client.generatePaymentProof('0.20');
-
-const result = await mcpClient.callTool('nexus:my_custom_tool', {
-  input: 'my data',
-  payment: proof,
-});
+// Disconnect when done
+await walletConnector.disconnect();
 ```
 
 ## Next Steps
 
-- Read [CLIENT-SETUP-GUIDE.md](../docs/CLIENT-SETUP-GUIDE.md) for detailed setup
-- Check [API-REFERENCE.md](../docs/API-REFERENCE.md) for all available tools
-- See [ARCHITECTURE.md](../docs/ARCHITECTURE.md) to understand how it works
+After running these examples:
 
-## Support
+1. **Build a React App** - Use thirdweb's React components
+   - See: `../README-THIRDWEB-INTEGRATION.md`
+   - Components: `ConnectButton`, `PayEmbed`, `TransactionButton`
 
-- GitHub Issues: https://github.com/borishalachev1/nexus-mcp/issues
-- Documentation: https://github.com/borishalachev1/nexus-mcp
+2. **Integrate with Your App** - Use the standalone connector
+   - Import: `import { walletConnector } from '../src/wallet-connector.js'`
+   - Use in your own code
+
+3. **Deploy to Production**
+   - Update `.env` with mainnet values
+   - Change `CHAIN_ID` to production chain (e.g., 8453 for Base mainnet)
+   - Update `PAYMENT_TOKEN_ADDRESS` to mainnet USDC
+
+## Resources
+
+- 📖 [Thirdweb Pay Docs](https://portal.thirdweb.com/connect/pay/overview)
+- 🌉 [Universal Bridge](https://portal.thirdweb.com/connect/pay/buy-with-crypto)
+- 🔌 [ConnectButton](https://portal.thirdweb.com/typescript/v5/react/components/ConnectButton)
+- 💳 [PayEmbed](https://portal.thirdweb.com/typescript/v5/react/components/PayEmbed)
+
+## Troubleshooting
+
+### "Missing environment variables" error
+- Make sure you've created `.env` file
+- Add your `THIRDWEB_CLIENT_ID` from https://thirdweb.com/dashboard
+- See: `../SETUP_INSTRUCTIONS.md`
+
+### Wallet connection fails
+- Make sure MetaMask/Coinbase Wallet is installed
+- Check that you're on the correct network
+- Try refreshing the browser extension
+
+### Payment quote fails
+- Ensure you have sufficient balance
+- Check that the token/chain is supported
+- Try a different payment method (crypto vs fiat)
+
+## Need Help?
+
+- Check `../README-THIRDWEB-INTEGRATION.md` for full integration guide
+- Check `../HOW-TO-USE-IN-INSPECTOR.md` for MCP inspector usage
+- Visit [thirdweb Discord](https://discord.gg/thirdweb) for support

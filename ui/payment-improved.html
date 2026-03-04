@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Payment Gateway</title>
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.9.0/dist/ethers.umd.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+            padding: 40px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .payment-info {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 4px solid #667eea;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        .info-label {
+            color: #666;
+            font-weight: 500;
+        }
+        .info-value {
+            color: #333;
+            font-weight: 600;
+        }
+        .amount {
+            font-size: 32px;
+            color: #667eea;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 12px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        .status {
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            text-align: center;
+        }
+        .status.info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        .status.success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        .status.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .status.warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .wallet-address {
+            font-family: monospace;
+            font-size: 12px;
+            background: #f3f4f6;
+            padding: 8px;
+            border-radius: 6px;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .step {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        .step.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .step-number {
+            display: inline-block;
+            width: 28px;
+            height: 28px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+            margin-right: 8px;
+            font-weight: bold;
+        }
+        .step h3 {
+            margin-bottom: 16px;
+            color: #333;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>💳 Payment Gateway</h1>
+        <p class="subtitle">Secure payment powered by X402 Protocol</p>
+
+        <div id="status" class="status info" style="display: none;"></div>
+
+        <div class="payment-info" id="paymentInfo" style="display: none;">
+            <div class="info-row">
+                <span class="info-label">Tool:</span>
+                <span class="info-value" id="toolName">-</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Description:</span>
+                <span class="info-value" id="description">-</span>
+            </div>
+            <div class="amount" id="amount">0.00 USDC</div>
+            <div class="info-row">
+                <span class="info-label">Network:</span>
+                <span class="info-value" id="network">Base Sepolia</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Recipient:</span>
+                <span class="info-value" id="recipient" style="font-size: 11px; font-family: monospace;">-</span>
+            </div>
+        </div>
+
+        <div class="step active" id="step1">
+            <h3><span class="step-number">1</span>Connect Wallet</h3>
+            <button class="btn-primary" id="connectBtn" onclick="connectWallet()">
+                Connect MetaMask
+            </button>
+            <div id="walletInfo" style="display: none;">
+                <div class="wallet-address" id="walletAddress"></div>
+            </div>
+        </div>
+
+        <div class="step" id="step2">
+            <h3><span class="step-number">2</span>Approve Payment</h3>
+            <button class="btn-success" id="approveBtn" onclick="approvePayment()" disabled>
+                ✅ Approve Payment
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let paymentData = null;
+        let walletAddress = null;
+        let provider = null;
+        let signer = null;
+
+        // Get payment ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const paymentId = urlParams.get('payment');
+
+        // Initialize
+        async function init() {
+            if (!paymentId) {
+                // No payment ID - testing mode
+                showStatus('info', '🧪 Test mode - No active payment. Connect wallet to test signing.');
+                
+                // Set default test payment data
+                paymentData = {
+                    id: 'test',
+                    toolName: 'Test Tool',
+                    amount: '0.10',
+                    description: 'Testing payment flow',
+                    recipient: '0xCE918BbF214E64951B2fFD3c0a895C1411fe3D85',
+                    chainId: 84532,
+                    token: '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
+                };
+                
+                displayPaymentInfo(paymentData);
+                return;
+            }
+
+            // Load payment details
+            try {
+                const response = await fetch(`/api/pending-payment/${paymentId}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    showStatus('error', `❌ ${data.error}`);
+                    return;
+                }
+
+                paymentData = data;
+                displayPaymentInfo(data);
+                showStatus('info', '🔌 Ready to connect wallet');
+            } catch (err) {
+                showStatus('error', `❌ Failed to load payment: ${err.message}`);
+            }
+        }
+
+        function displayPaymentInfo(data) {
+            document.getElementById('paymentInfo').style.display = 'block';
+            document.getElementById('toolName').textContent = data.toolName;
+            document.getElementById('description').textContent = data.description;
+            document.getElementById('amount').textContent = `${data.amount} USDC`;
+            document.getElementById('recipient').textContent = data.recipient;
+        }
+
+        async function connectWallet() {
+            const btn = document.getElementById('connectBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>Connecting...';
+
+            try {
+                if (typeof window.ethereum === 'undefined') {
+                    throw new Error('MetaMask not installed. Please install MetaMask browser extension.');
+                }
+
+                provider = new ethers.BrowserProvider(window.ethereum);
+                
+                // Request account access
+                const accounts = await provider.send("eth_requestAccounts", []);
+                walletAddress = accounts[0];
+                signer = await provider.getSigner();
+
+                // Check network
+                const network = await provider.getNetwork();
+                const expectedChainId = (paymentData && paymentData.chainId) ? paymentData.chainId : 84532;
+                
+                if (Number(network.chainId) !== expectedChainId) {
+                    showStatus('warning', `⚠️ Please switch to the correct network (Chain ID: ${expectedChainId})`);
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: `0x${expectedChainId.toString(16)}` }],
+                        });
+                    } catch (switchError) {
+                        throw new Error('Please switch to the correct network manually');
+                    }
+                }
+
+                // Display wallet info
+                document.getElementById('walletAddress').textContent = `Connected: ${walletAddress}`;
+                document.getElementById('walletInfo').style.display = 'block';
+                
+                // Enable step 2
+                document.getElementById('step1').classList.remove('active');
+                document.getElementById('step2').classList.add('active');
+                document.getElementById('approveBtn').disabled = false;
+                
+                btn.innerHTML = '✅ Wallet Connected';
+                showStatus('success', '✅ Wallet connected successfully!');
+            } catch (err) {
+                console.error('Connection error:', err);
+                showStatus('error', `❌ ${err.message}`);
+                btn.disabled = false;
+                btn.innerHTML = 'Connect MetaMask';
+            }
+        }
+
+        async function approvePayment() {
+            const btn = document.getElementById('approveBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>Signing...';
+            
+            showStatus('info', '🔏 Please sign the message in MetaMask...');
+
+            try {
+                // Generate payment parameters
+                const nonce = Date.now().toString();
+                const deadline = Math.floor(Date.now() / 1000) + 300; // 5 minutes from now
+                const amount = (paymentData && paymentData.amount) || '0.10'; // Default to 0.10 for testing
+                
+                // Create EIP-712 typed data
+                const domain = {
+                    name: 'Permit2',
+                    chainId: (paymentData && paymentData.chainId) ? paymentData.chainId : 84532,
+                    verifyingContract: '0x000000000022D473030F116dDEE9F6B43aC78BA3'
+                };
+
+                const types = {
+                    PermitWitnessTransferFrom: [
+                        { name: 'permitted', type: 'TokenPermissions' },
+                        { name: 'spender', type: 'address' },
+                        { name: 'nonce', type: 'uint256' },
+                        { name: 'deadline', type: 'uint256' },
+                        { name: 'witness', type: 'PaymentWitness' }
+                    ],
+                    TokenPermissions: [
+                        { name: 'token', type: 'address' },
+                        { name: 'amount', type: 'uint256' }
+                    ],
+                    PaymentWitness: [
+                        { name: 'recipient', type: 'address' },
+                        { name: 'amount', type: 'uint256' }
+                    ]
+                };
+
+                // Convert USDC to wei (6 decimals)
+                const amountWei = ethers.parseUnits(amount, 6);
+
+                const message = {
+                    permitted: {
+                        token: (paymentData && paymentData.token) || '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+                        amount: amountWei
+                    },
+                    spender: (paymentData && paymentData.recipient) || '0xCE918BbF214E64951B2fFD3c0a895C1411fe3D85',
+                    nonce: nonce,
+                    deadline: deadline,
+                    witness: {
+                        recipient: (paymentData && paymentData.recipient) || '0xCE918BbF214E64951B2fFD3c0a895C1411fe3D85',
+                        amount: amountWei
+                    }
+                };
+
+                // Sign the typed data
+                const signature = await signer.signTypedData(domain, types, message);
+
+                showStatus('info', '📡 Submitting payment...');
+
+                // Submit to server
+                const response = await fetch(`/api/approve-payment/${paymentId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        walletAddress,
+                        signature,
+                        nonce,
+                        deadline,
+                        amount
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showStatus('success', '✅ Payment approved! Closing in 2 seconds...');
+                    btn.innerHTML = '✅ Payment Approved!';
+                    setTimeout(() => window.close(), 2000);
+                } else {
+                    throw new Error(result.error || 'Payment approval failed');
+                }
+            } catch (err) {
+                console.error('Approval error:', err);
+                showStatus('error', `❌ ${err.message || 'Payment approval failed'}`);
+                btn.disabled = false;
+                btn.innerHTML = '✅ Approve Payment';
+            }
+        }
+
+        function showStatus(type, message) {
+            const statusEl = document.getElementById('status');
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = message;
+            statusEl.style.display = 'block';
+        }
+
+        // Socket.IO listeners
+        socket.on('connect', () => {
+            console.log('Connected to payment server');
+        });
+
+        socket.on('payment-request', (data) => {
+            console.log('New payment request:', data);
+            if (data.id === paymentId) {
+                paymentData = data;
+                displayPaymentInfo(data);
+            }
+        });
+
+        // Initialize on load
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

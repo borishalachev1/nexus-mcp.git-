@@ -83,7 +83,7 @@ class NexusMCPServer {
           console.error(`   Requesting ${tool.price} USDC from user...\n`);
           
           try {
-            // Request payment via UI
+            // Request payment via browser UI with thirdweb ConnectButton
             payment = await paymentUIServer.requestPayment(
               toolName,
               tool.price,

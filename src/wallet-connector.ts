@@ -1,12 +1,14 @@
 /**
- * Thirdweb Wallet Connector
- * Handles automatic wallet connection and payment prompts
+ * Thirdweb Wallet Connector with Pay Integration
+ * Handles wallet connection and payments via thirdweb SDK (no custom UI)
  */
 
 import { createThirdwebClient } from 'thirdweb';
 import { createWallet, inAppWallet } from 'thirdweb/wallets';
 import { baseSepolia, base, arbitrum } from 'thirdweb/chains';
+import { getBuyWithCryptoQuote, getBuyWithFiatQuote, isSwapRequiredPostOnramp } from 'thirdweb/pay';
 import { config } from './config.js';
+import type { Account } from 'thirdweb/wallets';
 
 const CHAINS = {
   84532: baseSepolia,
@@ -17,7 +19,7 @@ const CHAINS = {
 export class WalletConnector {
   private client: any;
   private wallet: any;
-  private account: any;
+  private account: Account | null = null;
 
   constructor() {
     this.client = createThirdwebClient({
@@ -26,22 +28,37 @@ export class WalletConnector {
   }
 
   /**
-   * Initialize in-app wallet for user
-   * This creates a seamless wallet experience
+   * Get thirdweb client
    */
-  async initializeWallet(userEmail?: string): Promise<void> {
-    try {
-      // Create in-app wallet (no browser extension needed!)
-      this.wallet = inAppWallet();
-      
-      // Connect wallet
-      this.account = await this.wallet.connect({
-        client: this.client,
-        chain: CHAINS[config.blockchain.chainId as keyof typeof CHAINS],
-        strategy: userEmail ? 'email' : 'google', // Can use email or social login
-      });
+  getClient() {
+    return this.client;
+  }
 
-      console.error('✅ Wallet connected:', this.account.address);
+  /**
+   * Initialize wallet using thirdweb SDK
+   * Supports: MetaMask, Coinbase, WalletConnect, Email, Google, etc.
+   */
+  async initializeWallet(strategy: 'io.metamask' | 'com.coinbase.wallet' | 'walletConnect' | 'email' | 'google' = 'io.metamask', email?: string): Promise<void> {
+    try {
+      if (strategy === 'email' || strategy === 'google') {
+        // In-app wallet for email/social login
+        this.wallet = inAppWallet();
+        this.account = await this.wallet.connect({
+          client: this.client,
+          chain: CHAINS[config.blockchain.chainId as keyof typeof CHAINS],
+          strategy: strategy === 'email' ? 'email' : 'google',
+          ...(email && strategy === 'email' ? { email } : {}),
+        });
+      } else {
+        // External wallet (MetaMask, Coinbase, WalletConnect)
+        this.wallet = createWallet(strategy);
+        this.account = await this.wallet.connect({
+          client: this.client,
+          chain: CHAINS[config.blockchain.chainId as keyof typeof CHAINS],
+        });
+      }
+
+      console.error('✅ Wallet connected:', this.account?.address || 'unknown');
     } catch (error) {
       console.error('❌ Wallet connection failed:', error);
       throw error;
@@ -49,10 +66,14 @@ export class WalletConnector {
   }
 
   /**
-   * Prompt user to approve payment
-   * Returns signed payment proof
+   * Process payment using thirdweb Pay (Universal Bridge support)
+   * Supports both crypto and fiat payments
    */
-  async promptPayment(amount: string, toolName: string): Promise<any> {
+  async processPayment(
+    amount: string, 
+    toolName: string,
+    paymentMethod: 'crypto' | 'fiat' = 'crypto'
+  ): Promise<{ quote?: any; txHash?: string; error?: string }> {
     if (!this.account) {
       throw new Error('Wallet not initialized. Call initializeWallet() first.');
     }
@@ -61,25 +82,51 @@ export class WalletConnector {
     console.error(`Tool: ${toolName}`);
     console.error(`Amount: ${amount} USDC`);
     console.error(`Chain: ${config.blockchain.chainId}`);
-    console.error('\n🔐 Opening payment approval...\n');
+    console.error(`Method: ${paymentMethod}`);
 
-    // Generate payment proof manually
-    const proof = {
-      permitted: {
-        token: config.payment.tokenAddress,
-        amount: this.usdcToWei(amount),
-      },
-      spender: config.payment.recipient,
-      nonce: Date.now().toString() + Math.random().toString(36).substring(2),
-      deadline: Math.floor(Date.now() / 1000) + 300,
-      witness: {
-        recipient: config.payment.recipient,
-        amount: this.usdcToWei(amount),
-      },
-      signature: '0x' + '00'.repeat(65), // Placeholder signature
-    };
+    try {
+      const amountWei = this.usdcToWei(amount);
 
-    return proof;
+      if (paymentMethod === 'crypto') {
+        // Get crypto payment quote (supports Universal Bridge for cross-chain)
+        const quote = await getBuyWithCryptoQuote({
+          client: this.client,
+          fromAddress: this.account.address,
+          toAddress: config.payment.recipient,
+          fromChainId: config.blockchain.chainId,
+          toChainId: config.blockchain.chainId,
+          fromTokenAddress: config.payment.tokenAddress, // Can be any token
+          toTokenAddress: config.payment.tokenAddress,
+          toAmount: amountWei,
+        });
+
+        console.error('\n✅ Payment Quote Generated:');
+        console.error(`   From: ${quote.swapDetails.fromToken.symbol} (${quote.swapDetails.fromAmount})`);
+        console.error(`   To: ${quote.swapDetails.toToken.symbol} (${quote.swapDetails.toAmount})`);
+
+        return { quote };
+      } else {
+        // Get fiat payment quote
+        const quote = await getBuyWithFiatQuote({
+          client: this.client,
+          fromAddress: this.account.address,
+          fromCurrencySymbol: 'USD',
+          toChainId: config.blockchain.chainId,
+          toAddress: this.account.address,
+          toTokenAddress: config.payment.tokenAddress,
+          toAmount: amountWei,
+        });
+
+        console.error('\n✅ Fiat Payment Quote Generated:');
+        console.error(`   From: ${quote.fromCurrency.currencySymbol}`);
+        console.error(`   To: ${quote.toToken.symbol} (${quote.estimatedToAmountMinWei})`);
+
+        return { quote };
+      }
+    } catch (error) {
+      console.error('❌ Payment failed:', error);
+      return { error: error instanceof Error ? error.message : 'Unknown error' };
+    }
   }
 
   /**
@@ -90,10 +137,28 @@ export class WalletConnector {
   }
 
   /**
+   * Get connected account
+   */
+  getAccount(): Account | null {
+    return this.account;
+  }
+
+  /**
    * Check if wallet is connected
    */
   isConnected(): boolean {
     return !!this.account;
+  }
+
+  /**
+   * Disconnect wallet
+   */
+  async disconnect(): Promise<void> {
+    if (this.wallet) {
+      await this.wallet.disconnect();
+      this.account = null;
+      console.error('🔌 Wallet disconnected');
+    }
   }
 
   /**
