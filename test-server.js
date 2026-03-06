@@ -56,12 +56,7 @@ async function testNexusMCP() {
 
     // Test 1: List tools
     console.log('📋 Test 1: Listing available tools...');
-    const toolsResponse = await client.request(
-      {
-        method: 'tools/list',
-      },
-      { timeout: 5000 }
-    );
+    const toolsResponse = await client.listTools();
 
     console.log(`✅ Found ${toolsResponse.tools.length} tools:\n`);
     toolsResponse.tools.forEach((tool, i) => {
@@ -72,16 +67,10 @@ async function testNexusMCP() {
 
     // Test 2: Call free tool
     console.log('🆓 Test 2: Calling free tool (get_service_info)...');
-    const freeToolResponse = await client.request(
-      {
-        method: 'tools/call',
-        params: {
-          name: 'get_service_info',
-          arguments: {},
-        },
-      },
-      { timeout: 5000 }
-    );
+    const freeToolResponse = await client.callTool({
+      name: 'get_service_info',
+      arguments: {},
+    });
 
     console.log('✅ Free tool response:');
     console.log(JSON.stringify(freeToolResponse, null, 2));
@@ -90,18 +79,12 @@ async function testNexusMCP() {
     // Test 3: Call paid tool (should fail with payment requirement)
     console.log('💰 Test 3: Calling paid tool without payment (get_weather)...');
     try {
-      await client.request(
-        {
-          method: 'tools/call',
-          params: {
-            name: 'get_weather',
-            arguments: {
-              city: 'London',
-            },
-          },
+      await client.callTool({
+        name: 'get_weather',
+        arguments: {
+          city: 'London',
         },
-        { timeout: 5000 }
-      );
+      });
       console.log('❌ ERROR: Should have requested payment!');
     } catch (error) {
       console.log('✅ Correctly requested payment:');

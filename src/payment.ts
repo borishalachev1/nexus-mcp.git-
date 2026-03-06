@@ -198,6 +198,11 @@ export class PaymentHandler {
    */
   async settlePayment(payment: X402PaymentPayload): Promise<string | null> {
     try {
+      // 🧪 MOCK MODE: Return a fake hash
+      if (process.env.MOCK_SETTLEMENT === 'true') {
+        return '0x' + 'm0ck'.repeat(16);
+      }
+
       const response = await fetch(`${config.x402.facilitatorUrl}/settle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
