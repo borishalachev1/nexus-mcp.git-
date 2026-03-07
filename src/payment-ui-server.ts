@@ -49,7 +49,9 @@ export class PaymentUIServer {
     this.app.get('/api/config', (req: Request, res: Response) => {
       res.json({
         thirdwebClientId: config.thirdweb.clientId,
-        chainId: config.blockchain.chainId
+        chainId: config.blockchain.chainId,
+        tokenAddress: config.payment.tokenAddress,
+        recipientAddress: config.payment.recipient
       });
     });
 
@@ -57,7 +59,12 @@ export class PaymentUIServer {
     this.app.get('/api/pending-payment/:id', (req: Request, res: Response) => {
       const payment = this.pendingPayments.get(req.params.id);
       if (payment) {
-        res.json(payment);
+        res.json({
+          ...payment,
+          token: config.payment.tokenAddress,
+          recipient: config.payment.recipient,
+          chainId: config.blockchain.chainId
+        });
       } else {
         res.status(404).json({ error: 'Payment not found' });
       }

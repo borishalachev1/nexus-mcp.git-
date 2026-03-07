@@ -416,14 +416,21 @@
             btn.innerHTML = '<span class="spinner"></span>Signing...';
 
             try {
+                // Defensive check to ensure we have valid data
+                const amount = String(paymentData.amount || '0.10');
+                const token = String(paymentData.token || '0x036CbD53842c5426634e7929541eC2318f3dCF7e');
+                const recipient = String(paymentData.recipient || '0xCE918BbF214E64951B2fFD3c0a895C1411fe3D85');
+                const chainId = Number(paymentData.chainId || 84532);
+
                 const nonce = Date.now().toString();
                 const deadline = Math.floor(Date.now() / 1000) + 600;
-                const amount = paymentData.amount;
+                
+                // Ensure amount is a valid string for parseUnits
                 const amountWei = ethers.parseUnits(amount, 6);
 
                 const domain = {
                     name: 'Permit2',
-                    chainId: paymentData.chainId,
+                    chainId: chainId,
                     verifyingContract: '0x000000000022D473030F116dDEE9F6B43aC78BA3'
                 };
 
@@ -446,10 +453,10 @@
                 };
 
                 const message = {
-                    permitted: { token: paymentData.token, amount: amountWei },
-                    spender: paymentData.recipient,
+                    permitted: { token: token, amount: amountWei },
+                    spender: recipient,
                     nonce, deadline,
-                    witness: { recipient: paymentData.recipient, amount: amountWei }
+                    witness: { recipient: recipient, amount: amountWei }
                 };
 
                 const signature = await signer.signTypedData(domain, types, message);
