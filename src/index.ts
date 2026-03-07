@@ -61,49 +61,43 @@ class NexusMCPServer {
 
     // Handle tool calls with payment verification
     this.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<any> => {
-      const toolName = request.params.name;
-      const args = request.params.arguments || {};
+      try {
+        const toolName = request.params.name;
+        const args = request.params.arguments || {};
 
-      // Find the requested tool
-      const tool = tools.find((t) => t.name === toolName);
-      if (!tool) {
-        throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${toolName}`);
-      }
-
-      // Check if payment is required
-      const requiresPayment = parseFloat(tool.price) > 0;
-
-      if (requiresPayment) {
-        // Payment is required - verify it
-        let payment = args.payment as X402PaymentPayload | undefined;
-
-        if (!payment) {
-          // No payment provided - prompt user via UI
-          console.error(`\n💳 Payment required for ${toolName}`);
-          console.error(`   Requesting ${tool.price} USDC from user...\n`);
-          
-          try {
-            // Request payment via browser UI with thirdweb ConnectButton
-            payment = await paymentUIServer.requestPayment(
-              toolName,
-              tool.price,
-              tool.description
-            );
-            
-            console.error('✅ Payment approved by user\n');
-          } catch (error) {
-            const paymentMetadata = paymentHandler.createPaymentMetadata(tool.price);
-            
-            throw new McpError(
-              ErrorCode.InvalidRequest,
-              `Payment required: ${tool.price} USDC. Payment approval failed or cancelled.`,
-              paymentMetadata
-            );
-          }
+        // Find the requested tool
+        const tool = tools.find((t) => t.name === toolName);
+        if (!tool) {
+          throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${toolName}`);
         }
 
-        // Verify the payment signature (payment is guaranteed to be defined here)
-        if (payment) {
+        // Check if payment is required
+        const requiresPayment = parseFloat(tool.price) > 0;
+
+        if (requiresPayment) {
+          // Payment is required - verify it
+          const payment = args.payment as X402PaymentPayload | undefined;
+
+          if (!payment) {
+            // No payment provided - provide payment URL and instructions
+            const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const url = `${paymentUIServer.getUIUrl()}?payment=${paymentId}`;
+            
+            // Register the pending payment in the UI server without waiting for it
+            paymentUIServer.registerPendingPayment(paymentId, toolName, tool.price, tool.description);
+
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: `💳 PAYMENT REQUIRED: ${tool.price} USDC\n\nTo use this tool, please complete the payment at the following URL:\n\n${url}\n\nOnce you have approved the payment in your wallet, the page will provide you with a "Payment Proof" JSON object. Please call this tool again and include that object in the 'payment' argument.`,
+                },
+              ],
+              isError: true,
+            };
+          }
+
+          // Verify the payment signature
           const isValid = await paymentHandler.verifyPayment(payment);
           if (!isValid) {
             throw new McpError(
@@ -122,40 +116,13 @@ class NexusMCPServer {
           }
 
           // Execute the tool with payment verified
-          try {
-            const result = await tool.handler(args);
-            
-            const toolResult: NexusToolResult = {
-              success: true,
-              data: result,
-              paymentVerified: true,
-              transactionHash: txHash,
-            };
-
-            return {
-              content: [
-                {
-                  type: 'text',
-                  text: JSON.stringify(toolResult, null, 2),
-                },
-              ],
-            };
-          } catch (error) {
-            throw new McpError(
-              ErrorCode.InternalError,
-              `Tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-          }
-        }
-      } else {
-        // Free tool - no payment required
-        try {
           const result = await tool.handler(args);
           
           const toolResult: NexusToolResult = {
             success: true,
             data: result,
-            paymentVerified: false, // No payment needed
+            paymentVerified: true,
+            transactionHash: txHash,
           };
 
           return {
@@ -166,12 +133,31 @@ class NexusMCPServer {
               },
             ],
           };
-        } catch (error) {
-          throw new McpError(
-            ErrorCode.InternalError,
-            `Tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-          );
+        } else {
+          // Free tool - no payment required
+          const result = await tool.handler(args);
+          
+          const toolResult: NexusToolResult = {
+            success: true,
+            data: result,
+            paymentVerified: false,
+          };
+
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(toolResult, null, 2),
+              },
+            ],
+          };
         }
+      } catch (error) {
+        if (error instanceof McpError) throw error;
+        throw new McpError(
+          ErrorCode.InternalError,
+          `Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
       }
     });
   }

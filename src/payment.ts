@@ -109,29 +109,58 @@ export class PaymentHandler {
   }
 
   /**
+   * Inflate a potentially flat payment proof into a full X402PaymentPayload
+   */
+  private inflatePayment(payment: any): X402PaymentPayload {
+    // If it's already in the correct nested format, return as is
+    if (payment.permitted && payment.witness && payment.signature) {
+      return payment as X402PaymentPayload;
+    }
+
+    // Otherwise, try to reconstruct it from flat fields
+    // This handles the simplified format Claude often sends
+    return {
+      permitted: {
+        token: payment.token || config.payment.tokenAddress,
+        amount: payment.amount || (payment.permitted && payment.permitted.amount) || "0",
+      },
+      spender: payment.spender || config.payment.recipient,
+      nonce: payment.nonce || "",
+      deadline: payment.deadline || 0,
+      witness: {
+        recipient: payment.recipient || config.payment.recipient,
+        amount: payment.amount || (payment.witness && payment.witness.amount) || "0",
+      },
+      signature: payment.signature || "",
+    };
+  }
+
+  /**
    * Verify X402 payment signature
    */
-  async verifyPayment(payment: X402PaymentPayload): Promise<boolean> {
+  async verifyPayment(paymentPayload: any): Promise<boolean> {
     try {
+      // Inflate the payment to ensure we have the full structure
+      const payment = this.inflatePayment(paymentPayload);
+
       // 🧪 MOCK MODE: Skip actual settlement for development/testing
       if (process.env.MOCK_SETTLEMENT === 'true') {
         console.error('\n🧪 MOCK MODE ENABLED: Simulating payment verification and settlement');
-        console.error('   Signature: ' + payment.signature.slice(0, 20) + '...' + payment.signature.slice(-10));
-        console.error('   Amount: ' + payment.witness.amount.toString() + ' (smallest unit)');
-        console.error('   Recipient: ' + payment.witness.recipient);
+        console.error('   Signature: ' + (payment.signature ? payment.signature.slice(0, 20) + '...' + payment.signature.slice(-10) : 'MISSING'));
+        console.error('   Amount: ' + (payment.witness ? payment.witness.amount.toString() : '0') + ' (smallest unit)');
+        console.error('   Recipient: ' + (payment.witness ? payment.witness.recipient : 'MISSING'));
         console.error('   ✅ Mock payment verification successful!');
         console.error('   ✅ Mock on-chain settlement successful!');
-        console.error('   ℹ️  In production, this would verify signature and settle via X402 facilitator\n');
-        return true; // Pretend verification and settlement succeeded
+        return true; 
       }
       
       // Verify payment parameters match expected values
-      if (payment.permitted.token.toLowerCase() !== config.payment.tokenAddress.toLowerCase()) {
+      if (!payment.permitted || payment.permitted.token.toLowerCase() !== config.payment.tokenAddress.toLowerCase()) {
         console.error('Invalid token address');
         return false;
       }
 
-      if (payment.witness.recipient.toLowerCase() !== config.payment.recipient.toLowerCase()) {
+      if (!payment.witness || payment.witness.recipient.toLowerCase() !== config.payment.recipient.toLowerCase()) {
         console.error('Invalid recipient address');
         return false;
       }
@@ -196,8 +225,11 @@ export class PaymentHandler {
   /**
    * Settle payment on-chain via X402 facilitator
    */
-  async settlePayment(payment: X402PaymentPayload): Promise<string | null> {
+  async settlePayment(paymentPayload: any): Promise<string | null> {
     try {
+      // Inflate to ensure we have the full structure
+      const payment = this.inflatePayment(paymentPayload);
+
       // 🧪 MOCK MODE: Return a fake hash
       if (process.env.MOCK_SETTLEMENT === 'true') {
         return '0x' + 'm0ck'.repeat(16);

@@ -148,6 +148,40 @@ export class PaymentUIServer {
   }
 
   /**
+   * Register a pending payment without waiting for it
+   * Used for the asynchronous payment flow
+   */
+  registerPendingPayment(paymentId: string, toolName: string, amount: string, description: string): void {
+    this.pendingPayments.set(paymentId, {
+      id: paymentId,
+      toolName,
+      amount,
+      description,
+      timestamp: Date.now(),
+    });
+
+    // Auto-open browser (works on Windows, Mac, Linux)
+    const url = `http://localhost:${this.port}?payment=${paymentId}`;
+    console.error(`\n💳 PAYMENT REQUIRED`);
+    console.error(`   Tool: ${toolName}`);
+    console.error(`   Amount: ${amount} USDC`);
+    console.error(`   \n   👉 Opening payment page: ${url}\n`);
+    
+    import('open').then(({ default: open }) => {
+      open(url);
+    }).catch(() => {
+      console.error('   Please open this URL manually in your browser');
+    });
+
+    // Timeout after 10 minutes for background payments
+    setTimeout(() => {
+      if (this.pendingPayments.has(paymentId) && !this.pendingPayments.get(paymentId).resolve) {
+        this.pendingPayments.delete(paymentId);
+      }
+    }, 10 * 60 * 1000);
+  }
+
+  /**
    * Request payment approval from user
    * Opens browser with thirdweb Pay UI
    */
@@ -217,10 +251,19 @@ export class PaymentUIServer {
    */
   private usdcToWei(amount: string): string {
     const decimals = 6;
-    const parts = amount.split('.');
-    const whole = parts[0];
-    const fraction = (parts[1] || '').padEnd(decimals, '0').slice(0, decimals);
-    return whole + fraction;
+    try {
+      // Use BigInt for precise calculation without leading zeros
+      const [whole, fraction = ''] = amount.split('.');
+      const paddedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
+      return (BigInt(whole) * BigInt(Math.pow(10, decimals)) + BigInt(paddedFraction)).toString();
+    } catch (e) {
+      // Fallback to manual padding if BigInt fails
+      const parts = amount.split('.');
+      const whole = parts[0];
+      const fraction = (parts[1] || '').padEnd(decimals, '0').slice(0, decimals);
+      const result = whole + fraction;
+      return result.replace(/^0+/, '') || '0';
+    }
   }
 }
 
