@@ -1,8 +1,12 @@
 # Nexus MCP - AI Agent Payment Gateway
 
-https://github.com/user-attachments/assets/452e3f87-0231-4557-b89d-30d8045a363e
+https://github.com/user-attachments/assets/14d0ec6b-c503-4a78-b47a-0072d33cb279
+  
+MCP server with X402 payme
 
-MCP server with X402 payment integration. Pay with crypto for AI tools.
+
+
+nt integration. Pay with crypto for AI tools.
 
 ## Quick Start
 
