@@ -1,5 +1,7 @@
 # Nexus MCP - AI Agent Payment Gateway
 
+https://github.com/user-attachments/assets/452e3f87-0231-4557-b89d-30d8045a363e
+
 MCP server with X402 payment integration. Pay with crypto for AI tools.
 
 ## Quick Start
@@ -67,5 +69,5 @@ Set `MOCK_SETTLEMENT=true` to test without real tokens.
 Done.
 
 
-https://github.com/user-attachments/assets/452e3f87-0231-4557-b89d-30d8045a363e
+
 
