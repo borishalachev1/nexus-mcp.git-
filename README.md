@@ -65,3 +65,7 @@ Set `MOCK_SETTLEMENT=true` to test without real tokens.
 3. Use real USDC: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
 
 Done.
+
+
+https://github.com/user-attachments/assets/452e3f87-0231-4557-b89d-30d8045a363e
+
