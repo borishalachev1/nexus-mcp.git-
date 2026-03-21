@@ -1,4 +1,12 @@
+# 🛡️ Nexus AI Agent
+   2 [![License: BUSL-1.1](https://img.shields.io/badge/License-BUSL--1.1-red.svg)](LICENSE)
+   3
+   4 > **⚠️ LICENSE NOTICE: THIS IS NOT MIT**
+   5 > This project is protected under the **Business Source License 1.1 (BUSL-1.1)**.
+   6 > **Commercial use is strictly prohibited** until **March 21, 2030**. 
+   7 > Personal, educational, and non-commercial testnet experimentation is permitted.
 # Nexus MCP - AI Agent Payment Gateway
+
 
 https://github.com/user-attachments/assets/14d0ec6b-c503-4a78-b47a-0072d33cb279
   
